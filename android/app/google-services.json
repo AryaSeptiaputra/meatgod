@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "24096180001",
+    "project_id": "meatgod-firebase",
+    "storage_bucket": "meatgod-firebase.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:24096180001:android:cbac5568376e5ddb3e2060",
+        "android_client_info": {
+          "package_name": "com.example.meatgod"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCZGBRSLl7yJ5OpPCWfsRl1FB5zAfeiRk4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
