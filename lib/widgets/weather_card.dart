@@ -3,6 +3,8 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 class WeatherCard extends StatefulWidget {
+  const WeatherCard({super.key});
+
   @override
   _WeatherCardState createState() => _WeatherCardState();
 }
@@ -12,9 +14,12 @@ class _WeatherCardState extends State<WeatherCard> {
   String _temperature = "";
   String _humidity = "";
   String _windSpeed = "";
-  String _cityName = "Jakarta"; // Added city name
+  String _cityName = "Jakarta";
   bool _isLoading = true;
   bool _hasError = false;
+
+  // API key - sebaiknya simpan di environment variable atau secure storage
+  final String apiKey = 'bbd3592bb082a83729b7082f7ad8598a';
 
   @override
   void initState() {
@@ -34,31 +39,51 @@ class _WeatherCardState extends State<WeatherCard> {
 
   Future<void> fetchWeather() async {
     try {
-      final response = await http.get(Uri.parse('http://api.openweathermap.org/geo/1.0/direct?q=Jakarta&limit=5&appid={bbd3592bb082a83729b7082f7ad8598a}'));
+      // Step 1: Get coordinates for Jakarta
+      final geoResponse = await http.get(
+        Uri.parse('http://api.openweathermap.org/geo/1.0/direct?q=Jakarta&limit=1&appid=$apiKey'),
+      );  
 
+      if (geoResponse.statusCode == 200) {
+        var locations = json.decode(geoResponse.body);
+        if (locations.isNotEmpty) {
+          var location = locations[0];
+          double lat = location['lat'];
+          double lon = location['lon'];
 
-      if (response.statusCode == 200) {
-        var data = json.decode(response.body);
-        setState(() {
-          _weatherInfo = data['weather'][0]['description'];
-          _temperature = data['main']['temp'].toStringAsFixed(1);
-          _humidity = data['main']['humidity'].toString();
-          _windSpeed = data['wind']['speed'].toString();
-          _cityName = data['name'];
-          _isLoading = false;
-          _hasError = false;
-        });
+          // Step 2: Get weather data using coordinates
+          final weatherResponse = await http.get(
+            Uri.parse(
+              'https://api.openweathermap.org/data/2.5/weather?lat=$lat&lon=$lon&units=metric&appid=$apiKey',
+            ),
+          );
+
+          if (weatherResponse.statusCode == 200) {
+            var data = json.decode(weatherResponse.body);
+            setState(() {
+              _weatherInfo = data['weather'][0]['description'];
+              _temperature = data['main']['temp'].toStringAsFixed(1);
+              _humidity = data['main']['humidity'].toString();
+              _windSpeed = data['wind']['speed'].toString();
+              _cityName = data['name'];
+              _isLoading = false;
+              _hasError = false;
+            });
+          } else {
+            throw Exception('Failed to load weather data');
+          }
+        } else {
+          throw Exception('Location not found');
+        }
       } else {
-        setState(() {
-          _isLoading = false;
-          _hasError = true;
-        });
+        throw Exception('Failed to get location coordinates');
       }
     } catch (e) {
       setState(() {
         _isLoading = false;
         _hasError = true;
       });
+      print('Error fetching weather: $e'); // For debugging
     }
   }
 
@@ -72,10 +97,10 @@ class _WeatherCardState extends State<WeatherCard> {
           borderRadius: BorderRadius.circular(20),
         ),
         child: Container(
-          width: double.infinity, // Makes card take full width
-          constraints: BoxConstraints(
-            maxWidth: 600, // Maximum width constraint
-            minHeight: 250, // Minimum height constraint
+          width: double.infinity,
+          constraints: const BoxConstraints(
+            maxWidth: 600,
+            minHeight: 250,
           ),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
@@ -89,9 +114,9 @@ class _WeatherCardState extends State<WeatherCard> {
             ),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(24.0), // Increased padding
+            padding: const EdgeInsets.all(24.0),
             child: _isLoading
-                ? Center(
+                ? const Center(
                     child: CircularProgressIndicator(
                       color: Colors.white,
                     ),
@@ -109,13 +134,13 @@ class _WeatherCardState extends State<WeatherCard> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(
+        const Icon(
           Icons.error_outline,
           color: Colors.white,
           size: 60,
         ),
-        SizedBox(height: 16),
-        Text(
+        const SizedBox(height: 16),
+        const Text(
           'Failed to fetch weather data',
           style: TextStyle(
             color: Colors.white,
@@ -124,7 +149,7 @@ class _WeatherCardState extends State<WeatherCard> {
         ),
         TextButton(
           onPressed: fetchWeather,
-          child: Text(
+          child: const Text(
             'Retry',
             style: TextStyle(color: Colors.white, fontSize: 16),
           ),
@@ -145,14 +170,14 @@ class _WeatherCardState extends State<WeatherCard> {
               children: [
                 Text(
                   _cityName,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
                 ),
-                SizedBox(height: 8),
-                Text(
+                const SizedBox(height: 8),
+                const Text(
                   'Today\'s Weather',
                   style: TextStyle(
                     fontSize: 18,
@@ -175,13 +200,13 @@ class _WeatherCardState extends State<WeatherCard> {
               children: [
                 Text(
                   '$_temperature°',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 72,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
                 ),
-                Text(
+                const Text(
                   'C',
                   style: TextStyle(
                     fontSize: 72,
@@ -195,13 +220,13 @@ class _WeatherCardState extends State<WeatherCard> {
         ),
         Text(
           _weatherInfo.toUpperCase(),
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 24,
             color: Colors.white70,
             letterSpacing: 1.2,
           ),
         ),
-        SizedBox(height: 24),
+        const SizedBox(height: 24),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
@@ -238,18 +263,18 @@ class _WeatherCardState extends State<WeatherCard> {
           color: Colors.white70,
           size: 28,
         ),
-        SizedBox(height: 8),
+        const SizedBox(height: 8),
         Text(
           label,
-          style: TextStyle(
+          style: const TextStyle(
             color: Colors.white70,
             fontSize: 16,
           ),
         ),
-        SizedBox(height: 4),
+        const SizedBox(height: 4),
         Text(
           value,
-          style: TextStyle(
+          style: const TextStyle(
             color: Colors.white,
             fontSize: 18,
             fontWeight: FontWeight.bold,

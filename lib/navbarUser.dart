@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:meatgod/screens/user/home_screen.dart';
-
+import 'package:meatgod/screens/user/order_screen.dart';
+import 'package:meatgod/screens/user/profile_screen.dart';
 class NavbarUser extends StatefulWidget {
   const NavbarUser({super.key});
 
@@ -14,6 +15,8 @@ class _NavbarUserState extends State<NavbarUser> {
   // List of screens for bottom navigation
   final List<Widget> _screens = [
     HomeScreen(),
+    OrderScreen(),
+    ProfileScreen(),
   ];
 
   @override

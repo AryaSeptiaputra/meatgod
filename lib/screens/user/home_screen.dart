@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:meatgod/widgets/weather_card.dart';
+import 'package:meatgod/widgets/map_card.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
   _HomeScreenState createState() => _HomeScreenState();
@@ -13,17 +13,20 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final ScrollController _scrollController = ScrollController();
+  final TextEditingController _quantityController = TextEditingController();
   List<QueryDocumentSnapshot> _products = [];
 
   @override
   void initState() {
     super.initState();
     _fetchProducts();
+    _quantityController.text = '1'; // Default quantity
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
+    _quantityController.dispose();
     super.dispose();
   }
 
@@ -41,41 +44,116 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  // Add order to Firestore
+  Future<void> _addOrder(QueryDocumentSnapshot product, int quantity) async {
+    try {
+      // Calculate total amount
+      double price = product['price'];
+      double totalAmount = price * quantity;
+
+      // Create order document
+      await _firestore.collection('orders').add({
+        'orderDate': Timestamp.now(),
+        'status': 'pending',
+        'totalAmount': totalAmount,
+        'items': [
+          {
+            'name': product['name'],
+            'quantity': quantity,
+            'price': price,
+          }
+        ],
+        'productId': product.id,
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Order placed successfully!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error placing order: $e')),
+        );
+      }
+    }
+  }
+
   void _showBuyDialog(QueryDocumentSnapshot product) {
+    _quantityController.text = '1'; // Reset quantity to 1
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Buy Product'),
+        title: const Text('Buy Product'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Product: ${product['name']}'),
-            SizedBox(height: 6),
+            Text('Product: ${product['name']}',
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
             Text('Price: \$${product['price']}'),
-            SizedBox(height: 12),
-            Text('Are you sure you want to buy this product?'),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                const Text('Quantity: '),
+                Expanded(
+                  child: TextField(
+                    controller: _quantityController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                    ),
+                    onChanged: (value) {
+                      // Ensure quantity is at least 1
+                      if (value.isEmpty || int.parse(value) < 1) {
+                        _quantityController.text = '1';
+                      }
+                      // Force rebuild to update total price
+                      setState(() {});
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Total: \$${(product['price'] * int.parse(_quantityController.text)).toStringAsFixed(2)}',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('Cancel'),
             style: TextButton.styleFrom(foregroundColor: Colors.grey),
+            child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
-              // Implement buy functionality here
+            onPressed: () async {
+              // Get quantity from controller
+              int quantity = int.parse(_quantityController.text);
+
+              // Close dialog
               Navigator.of(context).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Purchase successful!')),
-              );
+
+              // Add order to Firestore
+              await _addOrder(product, quantity);
             },
-            child: Text('Buy Now'),
             style: ElevatedButton.styleFrom(
               backgroundColor: Theme.of(context).primaryColor,
               foregroundColor: Colors.white,
             ),
+            child: const Text('Confirm Order'),
           ),
         ],
       ),
@@ -96,26 +174,35 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('Home Screen'),
         elevation: 2,
+        actions: [
+          // Add Orders button
+          IconButton(
+            icon: const Icon(Icons.shopping_bag_outlined),
+            onPressed: () {
+              Navigator.pushNamed(context, '/orders');
+            },
+          ),
+        ],
       ),
       body: CustomScrollView(
         controller: _scrollController,
         slivers: [
-          // Weather Card
+          // Map Card
           SliverToBoxAdapter(
             child: Padding(
-              padding: EdgeInsets.all(12), // Reduced padding
-              child: WeatherCard(),
+              padding: const EdgeInsets.all(12),
+              child: MapCard(), // Use MapCard instead of WeatherCard
             ),
           ),
 
           // Featured Products Header
-          SliverToBoxAdapter(
+          const SliverToBoxAdapter(
             child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6), // Reduced padding
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               child: Text(
                 'Our Products',
                 style: TextStyle(
-                  fontSize: 20, // Smaller font size
+                  fontSize: 20,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -124,27 +211,27 @@ class _HomeScreenState extends State<HomeScreen> {
 
           // Products Grid
           _products.isEmpty
-              ? SliverFillRemaining(
+              ? const SliverFillRemaining(
                   child: Center(
                     child: CircularProgressIndicator(),
                   ),
                 )
               : SliverPadding(
-                  padding: EdgeInsets.all(12), // Reduced padding
+                  padding: const EdgeInsets.all(12),
                   sliver: SliverGrid(
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: _calculateCrossAxisCount(context),
                       childAspectRatio: 0.75,
-                      crossAxisSpacing: 12, // Reduced spacing
-                      mainAxisSpacing: 12, // Reduced spacing
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
                     ),
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {
                         var product = _products[index];
                         return Card(
-                          elevation: 2, // Reduced elevation
+                          elevation: 2,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10), // Smaller radius
+                            borderRadius: BorderRadius.circular(10),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -153,8 +240,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               Expanded(
                                 flex: 3,
                                 child: ClipRRect(
-                                  borderRadius: BorderRadius.vertical(
-                                    top: Radius.circular(10), // Smaller radius
+                                  borderRadius: const BorderRadius.vertical(
+                                    top: Radius.circular(10),
                                   ),
                                   child: AspectRatio(
                                     aspectRatio: 1,
@@ -162,52 +249,60 @@ class _HomeScreenState extends State<HomeScreen> {
                                         ? Image.memory(
                                             base64Decode(product['image']),
                                             fit: BoxFit.cover,
-                                            errorBuilder: (context, error, stackTrace) =>
-                                                Icon(Icons.image, size: 40), // Smaller icon
+                                            errorBuilder:
+                                                (context, error, stackTrace) =>
+                                                    const Icon(Icons.image,
+                                                        size: 40),
                                           )
-                                        : Icon(Icons.image, size: 40), // Smaller icon
+                                        : const Icon(Icons.image, size: 40),
                                   ),
                                 ),
                               ),
-                              
+
                               // Product Details
                               Expanded(
                                 flex: 2,
                                 child: Padding(
-                                  padding: EdgeInsets.all(8), // Reduced padding
+                                  padding: const EdgeInsets.all(8),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         product['name'],
-                                        style: TextStyle(
-                                          fontSize: 14, // Smaller font size
+                                        style: const TextStyle(
+                                          fontSize: 14,
                                           fontWeight: FontWeight.bold,
                                         ),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                       ),
-                                      SizedBox(height: 4),
+                                      const SizedBox(height: 4),
                                       Text(
                                         '\$${product['price']}',
                                         style: TextStyle(
-                                          fontSize: 12, // Smaller font size
+                                          fontSize: 12,
                                           color: Theme.of(context).primaryColor,
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
-                                      Spacer(),
+                                      const Spacer(),
                                       SizedBox(
                                         width: double.infinity,
                                         child: ElevatedButton.icon(
-                                          icon: Icon(Icons.shopping_cart, size: 18), // Smaller icon
-                                          label: Text('Buy Now', style: TextStyle(fontSize: 12)), // Smaller text
-                                          onPressed: () => _showBuyDialog(product),
+                                          icon: const Icon(Icons.shopping_cart,
+                                              size: 18),
+                                          label: const Text('Buy Now',
+                                              style: TextStyle(fontSize: 12)),
+                                          onPressed: () =>
+                                              _showBuyDialog(product),
                                           style: ElevatedButton.styleFrom(
-                                            backgroundColor: Theme.of(context).primaryColor,
+                                            backgroundColor:
+                                                Theme.of(context).primaryColor,
                                             foregroundColor: Colors.white,
                                             shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(8),
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
                                             ),
                                           ),
                                         ),
